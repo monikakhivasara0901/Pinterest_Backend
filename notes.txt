@@ -1,0 +1,246 @@
+Data Association : ek model se dusre model ke data ko jod dena id ke through,matlab ki agar app ke pass ek user hai to wo post banayega hi,
+jab post banega to wo user ke dwara hi banega,to hum ky karte hai jab do aise data aapas mein closely related hote hai to hum dono ko jod dete hai,
+ki ek model ke bane huye data ki id ko dusre model ke data ko de dete hai aur is model ke data ki id pichle model ke data ko dedete hai
+
+AB STEPS:
+1.2 model banaye:
+a.user.js
+b.post.js
+
+in dono ko index.js me require kar diya
+
+step 2:
+ab ek route banao jismein ek user ban jaye
+2.ab post wala ek route banao (data Association ke liye)
+humne 2 route banaye user,post dono ke pass apni pni id hai ab hum user ke id ko post me denge
+user{
+    type:mongoose.Schema.Types.ObjectId,
+    ref:'User'   //user.js me jo last line me user likha hai wo mtln everytime we make a new user it has its own id then thhis will connect to that particular post
+  },
+
+  posts: [{
+    type:mongoose.Schema.Types.ObjectId,
+    ref:"Post"
+  }],
+         
+  ab user ko post ki ide dene ke liye aur post ko user ki id dene ke liye:
+  //1st post of user1
+// router.get('/createpost',async function(req, res, next) {
+//   let createdpost=await postModel.create({
+//     postText:"Hello EveryOne",
+//     user:"65e32a0cabacd8c96fd771cc"
+//   });
+//   let user=await userModel.findOne({_id: "65e32a0cabacd8c96fd771cc"});
+//   user.posts.push(createdpost._id);
+//   await user.save();
+//    res.send("done");
+//   });
+
+//2nd post of same user
+
+router.get('/createpost',async function(req, res, next) {
+  let createdpost=await postModel.create({
+    postText:"Hello kaise ho",
+    user:"65e32a0cabacd8c96fd771cc"
+  });
+  let user=await userModel.findOne({_id: "65e32a0cabacd8c96fd771cc"});
+  user.posts.push(createdpost._id);
+  await user.save();
+   res.send("done");
+  });
+
+
+  //route jaha sare user ke post dekh sakte hai
+  router.get('/alluserposts',async function(req,res,next){
+       let user= await userModel
+       .findOne({_id:"65e32a0cabacd8c96fd771cc"})   //this is giving only id
+       .populate('posts');                          //this is giving actual data of posts
+       res.send(user)
+  })
+
+  //Now move towards project
+  /route par login and signup hoga
+  /profile par aapko aapki profile dikhegi and aapke saved post dikhenge,aur 
+  ek uploaded section hoga
+  /feed yaha par sari images dikhegi
+  /click karke image open ho jayegi save kr sakte ho
+  /board/:boardname poora board dikhega
+
+  //first set up passport
+  npm i passport passport-local passport-local-mongoose express-session
+  //code for passport
+  in app.js
+  const expressSession=require("express-session");
+
+app.use(expressSession({
+  resave:false,
+  saveUninitialized:false,
+  secret:"hey hey hey"
+}))
+
+app.use(passport.initialize());
+app.use(passport.session());
+passport.serializeUser(usersRouter.serializeUser());
+passport.deserializeUser(usersRouter.deserializeUser());
+
+//in user.js
+const plm=require("passport-local-mongoose");
+userSchema.plugin(plm);
+
+in index.js
+
+//after reducing the code 
+router.get('/register',function(req,res){
+  const { username, email, fullName } = req.body;
+  const userData = new userModel({ username, email, fullName });
+
+  userModel.register(userData,req.body.password)
+  .then(function(){
+    passport.authenticate("local")(req,res,function(){
+      res.redirect("/profile");
+    })
+  })
+})
+//user login hota ha niche ke 2 line ke wajah se
+const localStrategy=require("passport-local");
+passport.use(new localStrategy(userModel.authenticate()));
+
+the routers for signin and login there authentication usinf passport
+
+now flash message to see error if password in wrong on login page
+
+
+install=npm i connect-flash
+in app.js
+const flash=require("connect-flash");
+after view =app.use(flash())
+then in index.js
+router.post('/login',passport.authenticate("local",{
+  successRedirect:"/profile",
+  failureRedirect:"/login",
+  failureFlash:true
+}),function(req,res){
+});
+router.get('/login', function(req, res, next) {
+  // console.log(req.flash("error"));
+  res.render('login',{error:req.flash('error')});
+});
+
+in login.ejs
+<% if(error.length > 0){ %>
+      <p class="error"><%=error %></p>
+    <% } %>
+
+    //add css to error class also
+
+    now to show acoubt of particular username in index.js
+   
+   
+router.get('/profile',isLoggedIn,async function(req,res,next){
+   const user=await userModel.findOne({
+    username:req.session.passport.user
+   })
+  //  console.log(user);
+  res.render("profile",{user});
+})
+ in profile.ejs
+ <h2 class="name"><%= user.fullName %></h2>
+                <h3 class="username">@<%= user.username %></h3>
+
+Now we want to create a post:
+every post contains :images,captions
+so study 
+multer
+image upload
+caption
+
+for multer installation image is there=npm i uuid multer
+now open profile.ejs
+<form action="/upload" method="post" enctype="multipart/form-data">
+                    <input type="file" name="file">
+                    <button type="submit">Upload</button>
+                </form>
+
+
+   in multer.j
+   const multer=require("multer");
+const {v4 : uuidv4}=require("uuid");
+
+const storage=multer.diskStorage({
+    destination:function(req,file,cb){
+        cb(null,'./public/images/uploads')  //destination folder for uploads
+    },
+    filename:function(req,file,cb){
+        const uniqueFilename=uuidv4(); //generating a unique file name using uuid
+        cb(null,uniqueFilename)     //use the unique filename for uploaded file
+    }
+});
+
+const upload=multer({storage:storage});
+
+module.exports=upload;
+
+// to upload file with extension
+const multer=require("multer");
+const {v4 : uuidv4}=require("uuid");
+const path=require("path");
+
+const storage=multer.diskStorage({
+    destination:function(req,file,cb){
+        cb(null,'./public/images/uploads')  //destination folder for uploads
+    },
+    filename:function(req,file,cb){
+        const uniqueFilename=uuidv4(); //generating a unique file name using uuid
+        cb(null,uniqueFilename+path.extname(file.originalname))     //use the unique filename for uploaded file
+    }
+});
+
+const upload=multer({storage:storage});
+
+module.exports=upload;
+
+now index.js
+const upload=require("./multer");
+router.post('/upload',upload.single('file'),(req,res)=>{
+  //Access the uploaded file details via req.file
+  if(!req.file){
+    return res.status(400).send("No files were uploaded");
+  }
+  res.send("File uploaded successfully!");
+});
+
+//in index.js
+jo file upload hui hai use save karo as a post and uska postid user ko do 
+and  post ko user id do
+//make chages acc in profile.ejs ,post.js
+
+profile.ejs =   <input type="file" name="filecaption" placeholder="some caption">
+
+post.js= imageText: {
+    type: String,
+    required: true,
+  },
+  image:{
+   type:String
+  },
+  
+  in index.js
+router.post('/upload',isLoggedIn,upload.single('file'),async function(req,res,next){
+  //Access the uploaded file details via req.file
+  if(!req.file){
+    return res.status(400).send("No files were uploaded");
+  }
+  // res.send("File uploaded successfully!");
+  // jo file upload hui hai use save karo as a post and uska postid user ko do and  post ko user id do
+  const user=await userModel.findOne({username:req.session.passport.user});
+  const post=await postModel.create({
+    image:req.file.filename,
+    imageText:req.body.filecaption,
+    user:user_id
+  });
+  await user.posts.push(post._id);
+  res.send("done");
+});
+
+
+//after this watch video itself part 2 sheryians coding school pinterest project
